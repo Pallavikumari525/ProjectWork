@@ -1,0 +1,147 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# Load dataset
+df = pd.read_excel('Studentskillgap.xlsx')
+
+# Basic info
+print(df.head())
+print(df.columns.to_list())
+
+# Data cleaning
+df.columns = df.columns.str.strip()  # remove spaces in column names
+print(df.info())
+print(pd.isnull(df).sum())
+
+# Convert ratings to numeric
+df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
+df["rating.1"] = pd.to_numeric(df["rating.1"], errors="coerce")
+
+print(df.describe())
+
+# Understanding categorical data
+print("Courses:", df["current_course"].unique())
+print("Job roles:", df["job_role_aspiration"].unique())
+
+# EDA insights
+print("Average Technical Skills:", df["rating"].mean())
+print("Average Soft Skills:", df["rating.1"].mean())
+
+# Count of students per course
+course_count = df["current_course"].value_counts()
+print("Students per course:\n", course_count)
+
+# Visualization: Students per course
+plt.figure(figsize=(8, 5))
+course_count.plot(kind='bar')
+plt.title("Number of Students per Course")
+plt.xlabel("Course")
+plt.ylabel("Total Students")
+plt.xticks(rotation=45)
+plt.show()
+
+# Visualization: Average skill ratings
+plt.figure(figsize=(8, 5))
+avg_ratings = [df["rating"].mean(), df["rating.1"].mean()]
+labels = ["Technical Skills", "Soft Skills"]
+plt.bar(labels, avg_ratings)
+plt.title("Average Skill Ratings")
+plt.ylabel("Rating (out of 5)")
+plt.ylim(0, 5)
+plt.show()
+
+# Top students
+top_students = df.sort_values(by="rating", ascending=False).head(5)
+print("Top 5 Students by Tech Skills:")
+print(top_students[["name", "rating", "rating.1", "projects"]])
+
+# Thresholds
+technical_threshold = 3
+soft_threshold = 3
+
+# Skill gap detection
+df["TechSkill_Gap"] = np.where(df["rating"] < technical_threshold, "Needs Improvement", "Good")
+df["SoftSkill_Gap"] = np.where(df["rating.1"] < soft_threshold, "Needs Improvement", "Good")
+
+df["Overall_Skill_Gap"] = np.where(
+    (df["rating"] < technical_threshold) | (df["rating.1"] < soft_threshold),
+    "Skill Gap Present",
+    "Career Ready"
+)
+
+print(df[["name", "rating", "rating.1", "Overall_Skill_Gap"]].head())
+
+# Visualization: Skill gap distribution
+plt.figure(figsize=(6, 4))
+df["Overall_Skill_Gap"].value_counts().plot(kind='bar')
+plt.title("Skill Gap Distribution")
+plt.xlabel("Category")
+plt.ylabel("Number of Students")
+plt.xticks(rotation=0)
+plt.show()
+
+# Career readiness score
+df["Career_Readiness_Score"] = (df["rating"] + df["rating.1"]) / 2
+
+print(df[["name", "rating", "rating.1", "Career_Readiness_Score", "Overall_Skill_Gap"]].head())
+
+# Visualization: Readiness distribution
+plt.figure(figsize=(7, 4))
+plt.hist(df["Career_Readiness_Score"], bins=10)
+plt.title("Career Readiness Score Distribution")
+plt.xlabel("Score")
+plt.ylabel("Number of Students")
+plt.grid()
+plt.show()
+
+# Create target variable
+readiness_threshold = 4
+df["Career_Status"] = np.where(df["Career_Readiness_Score"] >= readiness_threshold, 1, 0)
+
+# Features & label
+X = df[["rating", "rating.1"]]
+y = df["Career_Status"]
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42
+)
+
+# Model training
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Predictions
+y_pred = model.predict(X_test)
+
+# Evaluation
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+# Confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+print("\nConfusion Matrix:\n", cm)
+
+# Visualization: Confusion matrix
+plt.figure(figsize=(5, 4))
+plt.imshow(cm)
+plt.title("Confusion Matrix")
+plt.xlabel("Predicted Label")
+plt.ylabel("True Label")
+plt.colorbar()
+plt.show()
+
+# Prediction for new student
+new_student = pd.DataFrame([[2, 4]], columns=['rating', 'rating.1'])
+prediction = model.predict(new_student)
+
+if prediction[0] == 1:
+    print("This student is Career Ready.")
+else:
+    print("This student Needs Improvement.")
